@@ -1,14 +1,17 @@
 import discord
 import math
 import os
+import sys
 import time
 
-from ..credentials import KCbot
+sys.path.append("../")
+
+from credentials import KCBot
 
 intents = discord.Intents.default()
 intents.members = True
 
-TOKEN = KCbot.API_TOKEN
+TOKEN = KCBot.API_TOKEN
 client = discord.Client(intents=intents)
 
 prefix = "!kc"
@@ -106,7 +109,7 @@ async def on_message(message):
             return
 
         if command == "bangers":
-            for filepath in os.scandir(".\\assets\\audio"):
+            for filepath in os.scandir("./assets/audio"):
                 await message.channel.send_dile(filepath)
             return
 
