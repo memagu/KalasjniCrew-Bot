@@ -126,7 +126,7 @@ async def pyeval(ctx, *args):
     await ctx.send(f"{expression} returned:\n```{eval(expression)}```")
 
 
-@bot.command(hidden=True, help="Create a role| <role_name> <permission_number>")
+@bot.command(hidden=True, help="Create a role | <role_name> <permission_number>")
 async def crr(ctx, role_name: str, permission_number: int):
     if ctx.author.id != 272079853954531339:
         return
@@ -145,7 +145,7 @@ async def gvr(ctx):
     role = ctx.message.role_mentions[0]
     member_roles = member.roles
     member_roles.append(role)
-    member.edit(roles=member_roles)
+    await member.edit(roles=member_roles)
 
 
 @bot.command(hidden=True, help="Remove a role from a user | <@member> <@role>")
@@ -157,7 +157,7 @@ async def rmr(ctx):
     role = ctx.message.role_mentions[0]
     member_roles = member.roles
     member_roles.remove(role)
-    member.edit(roles=member_roles)
+    await member.edit(roles=member_roles)
 
 
 bot.run(KCBot.API_TOKEN)
