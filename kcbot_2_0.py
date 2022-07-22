@@ -66,7 +66,7 @@ async def wave(ctx, *args):
     d = 60
 
     angle = 0
-    angle_velocity = mathy.pi / 10
+    angle_velocity = math.pi / 10
 
     while angle < (2 * math.pi / b) * periods:
         segment = f"{filler * int((a * math.sin(b * (angle + c)) + d))}{phrase}"
