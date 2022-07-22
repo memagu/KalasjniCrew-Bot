@@ -136,7 +136,13 @@ async def crr(ctx, role_name: str, permission_number: int):
     await guild.create_role(name=role_name, permissions=permissions)
 
 
-@bot.command(hidden=True, help="Give a user a role | <@member> <@role>")
+@bot.command(hidden=True, help="Delete a role | <@role_mention>")
+async def der(ctx):
+    role = ctx.message.role_mentions[0]
+    await role.delete()
+
+
+@bot.command(hidden=True, help="Give a member a role | <@member> <@role>")
 async def gvr(ctx):
     if ctx.author.id != 272079853954531339:
         return
@@ -148,7 +154,7 @@ async def gvr(ctx):
     await member.edit(roles=member_roles)
 
 
-@bot.command(hidden=True, help="Remove a role from a user | <@member> <@role>")
+@bot.command(hidden=True, help="Remove a role from a member | <@member> <@role>")
 async def rmr(ctx):
     if ctx.author.id != 272079853954531339:
         return
