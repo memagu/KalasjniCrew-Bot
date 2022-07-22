@@ -41,7 +41,7 @@ async def repeat(ctx, *args):
         await ctx.send("Please refrain from mentioning everyone")
         return
 
-    for _ in range(amount):
+    for _ in range(min(25, amount)):
         await ctx.send(phrase)
         await ctx.channel.purge(limit=1)
 
