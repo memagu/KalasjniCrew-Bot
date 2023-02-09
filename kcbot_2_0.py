@@ -133,7 +133,7 @@ async def encrypt(ctx, *args):
     cipher_text = "".join(chr(pow(ord(char), key, 143)) for char in plain_text)
 
     await ctx.channel.purge(limit=1)
-    await ctx.send(f"Plain text: ```{plain_text}```\nCipher text: ```{cipher_text}```")
+    await ctx.send(f"Cipher text: ```{cipher_text}```")
 
 
 @bot.command(brief="Decrypt cipher text | <cipher_text> <key>")
@@ -143,7 +143,7 @@ async def decrypt(ctx, *args):
     plain_text = "".join(chr(pow(ord(char), key, 143)) for char in cipher_text)
 
     await ctx.channel.purge(limit=1)
-    await ctx.send(f"Cipher text: ```{cipher_text}```\nPlain text: ```{plain_text}```")
+    await ctx.send(f"Plain text: ```{plain_text}```")
 
 
 @bot.command(hidden=True, help="Create a role | <role_name> <permission_number>")
