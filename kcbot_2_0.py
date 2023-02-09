@@ -126,6 +126,26 @@ async def pyeval(ctx, *args):
     await ctx.send(f"{expression} returned:\n```{eval(expression)}```")
 
 
+@bot.command(brief="Encrypt plain text | <plain_text> <key>")
+async def encrypt(ctx, *args):
+    plain_text, key = " ".join(args[:-1]), int(args[-1])
+
+    cipher_text = "".join(chr(pow(ord(char), key, 143)) for char in plain_text)
+
+    await ctx.channel.purge(limit=1)
+    await ctx.send(f"Plain text: ```{plain_text}```\nCipher text: ```{cipher_text}```")
+
+
+@bot.command(brief="Decrypt cipher text | <cipher_text> <key>")
+async def encrypt(ctx, *args):
+    cipher_text, key = " ".join(args[:-1]), int(args[-1])
+
+    plain_text = "".join(chr(pow(ord(char), key, 143)) for char in cipher_text)
+
+    await ctx.channel.purge(limit=1)
+    await ctx.send(f"Cipher text: ```{cipher_text}```\nPlain text: ```{plain_text}```")
+
+
 @bot.command(hidden=True, help="Create a role | <role_name> <permission_number>")
 async def crr(ctx, role_name: str, permission_number: int):
     if ctx.author.id != 272079853954531339:
