@@ -137,7 +137,7 @@ async def encrypt(ctx, *args):
 
 
 @bot.command(brief="Decrypt cipher text | <cipher_text> <key>")
-async def encrypt(ctx, *args):
+async def decrypt(ctx, *args):
     cipher_text, key = " ".join(args[:-1]), int(args[-1])
 
     plain_text = "".join(chr(pow(ord(char), key, 143)) for char in cipher_text)
