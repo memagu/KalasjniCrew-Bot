@@ -66,7 +66,7 @@ async def wave(ctx, *args):
     d = 60
 
     angle = 0
-    angle_velocity = mathy.pi / 10
+    angle_velocity = math.pi / 10
 
     while angle < (2 * math.pi / b) * periods:
         segment = f"{filler * int((a * math.sin(b * (angle + c)) + d))}{phrase}"
@@ -158,6 +158,9 @@ async def crr(ctx, role_name: str, permission_number: int):
 
 @bot.command(hidden=True, help="Delete a role | <@role_mention>")
 async def der(ctx):
+    if ctx.author.id != 272079853954531339:
+        return
+    
     role = ctx.message.role_mentions[0]
     await role.delete()
 
