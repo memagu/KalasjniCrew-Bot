@@ -123,7 +123,7 @@ async def decrypt(ctx, *args):
     await ctx.send(f"Plain text: ```{plain_text}```")
 
 
-@bot.command(help="Get latest steam 2fa code for propullur | No arguments required")
+@bot.command(help="Get the latest steam 2fa code for propullur | No arguments required")
 async def propullur(ctx):
     credentials = Credentials.from_authorized_user_info(
         {
