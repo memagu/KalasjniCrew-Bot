@@ -4,15 +4,15 @@ import os
 import sys
 import datetime
 
-sys.path.append("../")
+sys.path.append("/home/pi/Dev/Python/")
 from credentials import KCBot
 
 from discord.ext import commands
 
 command_prefix = "!kc "
 
-intents = discord.Intents.default()
-intents.members = True
+intents = discord.Intents.all()
+# intents.members = True
 
 bot = commands.Bot(command_prefix=command_prefix, intents=intents)
 
