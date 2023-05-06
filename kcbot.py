@@ -1,10 +1,14 @@
+import base64
 import datetime
 import math
 import os
+import re
 
 import discord
 from discord.ext import commands
 from dotenv import load_dotenv
+from google.oauth2.credentials import Credentials
+from googleapiclient.discovery import build
 
 COMMAND_PREFIX = "!kc "
 
@@ -119,6 +123,27 @@ async def decrypt(ctx, *args):
     await ctx.send(f"Plain text: ```{plain_text}```")
 
 
+@bot.command(help="Get latest steam 2fa code for propullur | No arguments required")
+async def propullur(ctx):
+    credentials = Credentials.from_authorized_user_info(
+        {
+            "refresh_token": os.getenv("GMAIL_REFRESH_TOKEN"),
+            "client_id": os.getenv("GMAIL_CLIENT_ID"),
+            "client_secret": os.getenv("GMAIL_CLIENT_SECRET"),
+        },
+        ("https://www.googleapis.com/auth/gmail.readonly",)
+    )
+    service = build("gmail", "v1", credentials=credentials)
+
+    results = service.users().messages().list(userId="me", maxResults=1,
+                                              q="from:noreply@steampowered.com").execute()
+    message = service.users().messages().get(userId="me", id=results["messages"][0]["id"]).execute()
+    message_content = base64.b64decode(message["payload"]["parts"][0]["body"]["data"]).decode("utf-8")
+    steam_2fa_code = re.search("[A-Z0-9]{5}", message_content).group()
+
+    await ctx.send(f"This is the latest 2FA code for steam account propullur: {steam_2fa_code}")
+
+
 @bot.command(hidden=True, help="Create a role | <role_name> <permission_number>")
 async def crr(ctx, role_name: str, permission_number: int):
     if ctx.author.id != 272079853954531339:
@@ -164,7 +189,7 @@ async def rmr(ctx):
 
 def main():
     load_dotenv()
-    bot.run(os.getenv("discord_api_token"))
+    bot.run(os.getenv("DISCORD_API_TOKEN"))
 
 
 if __name__ == "__main__":
