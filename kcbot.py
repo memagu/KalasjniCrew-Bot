@@ -21,12 +21,12 @@ async def on_command(ctx):
     print(f"[{datetime.datetime.now()}] [{ctx.author}] {ctx.message.content}")
 
 
-@bot.command(brief="Replies pong | No arguments required")
+@bot.command(help="Replies pong | No arguments required")
 async def ping(ctx):
     await ctx.send("pong")
 
 
-@bot.command(brief="Repeats a phrase a number of times | <content> <amount>")
+@bot.command(help="Repeats a phrase a number of times | <content> <amount>")
 async def repeat(ctx, *args):
     phrase, amount = " ".join(args[:-1]), int(args[-1])
 
@@ -39,12 +39,12 @@ async def repeat(ctx, *args):
         await ctx.channel.purge(limit=1)
 
 
-@bot.command(brief="Clear a number of messages | <amount>")
+@bot.command(help="Clear a number of messages | <amount>")
 async def clear(ctx, amount: int):
     await ctx.channel.purge(limit=min(32, amount + 1))
 
 
-@bot.command(brief="Make a wave | <phrase> <periods>")
+@bot.command(help="Make a wave | <phrase> <periods>")
 async def wave(ctx, *args):
     phrase, periods = " ".join(args[:-1]), min(4, int(args[-1]))
 
@@ -68,58 +68,38 @@ async def wave(ctx, *args):
         angle += angle_velocity
 
 
-@bot.command(brief="Send songs stored bangers | No arguments required")
+@bot.command(help="Send songs stored bangers | No arguments required")
 async def bangers(ctx):
     for filepath in os.scandir("./assets/audio"):
         await ctx.send(file=discord.File(filepath))
 
 
-@bot.command(brief="Get member information | <@member>")
+@bot.command(help="Get member information | <@member>")
 async def info(ctx):
+    attributes = []
+
     member = ctx.message.mentions[0]
-    member_attributes = [["activities", member.activities],
-                         ["activity", member.activity],
-                         ["avatar", member.avatar],
-                         ["avatar_url", member.avatar_url],
-                         ["bot", member.bot],
-                         ["color", member.color],
-                         ["colour", member.colour],
-                         ["created_at", member.created_at],
-                         ["default_avatar", member.default_avatar],
-                         ["default_avatar_url", member.default_avatar_url],
-                         ["desktop_status", member.desktop_status],
-                         ["discriminator", member.discriminator],
-                         ["display_name", member.display_name],
-                         ["dm_channel", member.dm_channel],
-                         ["guild", member.guild],
-                         ["guild_permissions", member.guild_permissions],
-                         ["id", member.id],
-                         ["joined_at", member.joined_at],
-                         ["mention", member.mention],
-                         ["mobile_status", member.mobile_status],
-                         ["mutual_guilds", member.mutual_guilds],
-                         ["name", member.name],
-                         ["nick", member.nick],
-                         ["pending", member.pending],
-                         ["premium_since", member.premium_since],
-                         ["public_flags", member.public_flags],
-                         ["raw_status", member.raw_status],
-                         ["roles", member.roles],
-                         ["status", member.status],
-                         ["system", member.system],
-                         ["top_role", member.top_role],
-                         ["voice", member.voice],
-                         ["web_status", member.web_status]]
-    await ctx.send("\n".join([f"{attribute}={value}" for attribute, value in member_attributes]))
+    for name in dir(member):
+        if name.startswith('_'):
+            continue
+
+        attribute = getattr(member, name)
+
+        if callable(attribute):
+            continue
+
+        attributes.append(f"{name}={attribute}")
+
+    await ctx.send('\n'.join(attributes))
 
 
-@bot.command(brief="Evaluate python code | <expression>")
+@bot.command(help="Evaluate python code | <expression>")
 async def pyeval(ctx, *args):
     expression = " ".join(args)
-    await ctx.send(f"{expression} returned:\n```{eval(expression)}```")
+    await ctx.send(f"{expression} evaluated to:\n```{eval(expression)}```")
 
 
-@bot.command(brief="Encrypt plain text | <plain_text> <key>")
+@bot.command(help="Encrypt plain text | <plain_text> <key>")
 async def encrypt(ctx, *args):
     plain_text, key = " ".join(args[:-1]), int(args[-1])
 
@@ -129,7 +109,7 @@ async def encrypt(ctx, *args):
     await ctx.send(f"Cipher text: ```{cipher_text}```")
 
 
-@bot.command(brief="Decrypt cipher text | <cipher_text> <key>")
+@bot.command(help="Decrypt cipher text | <cipher_text> <key>")
 async def decrypt(ctx, *args):
     cipher_text, key = " ".join(args[:-1]), int(args[-1])
 
