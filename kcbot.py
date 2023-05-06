@@ -61,11 +61,19 @@ async def wave(ctx, periods: lambda x: min(4.0, float(x)), *, phrase: str):
     angle = 0
     angle_velocity = math.pi / 10
 
-    while angle < (2 * math.pi / b) * periods:
-        segment = f"{filler * int((a * math.sin(b * (angle + c)) + d))}{phrase}"
-        await ctx.send(segment)
+    wave_part = ""
 
+    while angle < (2 * math.pi / b) * periods:
+        segment = f"{filler * int((a * math.sin(b * (angle + c)) + d))}{phrase}\n"
+
+        if len(wave_part) + len(segment) > 2000:
+            await ctx.send(wave_part)
+            wave_part = ""
+
+        wave_part += segment
         angle += angle_velocity
+
+    await ctx.send(wave_part)
 
 
 @bot.command(help="Send songs stored bangers | No arguments required")
