@@ -1,20 +1,14 @@
-import discord
+import datetime
 import math
 import os
-import sys
-import datetime
 
-sys.path.append("/home/pi/Dev/Python/")
-from credentials import KCBot
-
+import discord
 from discord.ext import commands
+from dotenv import load_dotenv
 
-command_prefix = "!kc "
+COMMAND_PREFIX = "!kc "
 
-intents = discord.Intents.all()
-# intents.members = True
-
-bot = commands.Bot(command_prefix=command_prefix, intents=intents)
+bot = commands.Bot(command_prefix=COMMAND_PREFIX, intents=discord.Intents.all())
 
 
 @bot.event
@@ -24,8 +18,7 @@ async def on_ready():
 
 @bot.event
 async def on_command(ctx):
-    with open("log.log", "a", encoding="utf-8") as log:
-        log.write(f"[{datetime.datetime.now()}] [{ctx.author}] {ctx.message.content}\n")
+    print(f"[{datetime.datetime.now()}] [{ctx.author}] {ctx.message.content}")
 
 
 @bot.command(brief="Replies pong | No arguments required")
@@ -85,38 +78,38 @@ async def bangers(ctx):
 async def info(ctx):
     member = ctx.message.mentions[0]
     member_attributes = [["activities", member.activities],
-                       ["activity", member.activity],
-                       ["avatar", member.avatar],
-                       ["avatar_url", member.avatar_url],
-                       ["bot", member.bot],
-                       ["color", member.color],
-                       ["colour", member.colour],
-                       ["created_at", member.created_at],
-                       ["default_avatar", member.default_avatar],
-                       ["default_avatar_url", member.default_avatar_url],
-                       ["desktop_status", member.desktop_status],
-                       ["discriminator", member.discriminator],
-                       ["display_name", member.display_name],
-                       ["dm_channel", member.dm_channel],
-                       ["guild", member.guild],
-                       ["guild_permissions", member.guild_permissions],
-                       ["id", member.id],
-                       ["joined_at", member.joined_at],
-                       ["mention", member.mention],
-                       ["mobile_status", member.mobile_status],
-                       ["mutual_guilds", member.mutual_guilds],
-                       ["name", member.name],
-                       ["nick", member.nick],
-                       ["pending", member.pending],
-                       ["premium_since", member.premium_since],
-                       ["public_flags", member.public_flags],
-                       ["raw_status", member.raw_status],
-                       ["roles", member.roles],
-                       ["status", member.status],
-                       ["system", member.system],
-                       ["top_role", member.top_role],
-                       ["voice", member.voice],
-                       ["web_status", member.web_status]]
+                         ["activity", member.activity],
+                         ["avatar", member.avatar],
+                         ["avatar_url", member.avatar_url],
+                         ["bot", member.bot],
+                         ["color", member.color],
+                         ["colour", member.colour],
+                         ["created_at", member.created_at],
+                         ["default_avatar", member.default_avatar],
+                         ["default_avatar_url", member.default_avatar_url],
+                         ["desktop_status", member.desktop_status],
+                         ["discriminator", member.discriminator],
+                         ["display_name", member.display_name],
+                         ["dm_channel", member.dm_channel],
+                         ["guild", member.guild],
+                         ["guild_permissions", member.guild_permissions],
+                         ["id", member.id],
+                         ["joined_at", member.joined_at],
+                         ["mention", member.mention],
+                         ["mobile_status", member.mobile_status],
+                         ["mutual_guilds", member.mutual_guilds],
+                         ["name", member.name],
+                         ["nick", member.nick],
+                         ["pending", member.pending],
+                         ["premium_since", member.premium_since],
+                         ["public_flags", member.public_flags],
+                         ["raw_status", member.raw_status],
+                         ["roles", member.roles],
+                         ["status", member.status],
+                         ["system", member.system],
+                         ["top_role", member.top_role],
+                         ["voice", member.voice],
+                         ["web_status", member.web_status]]
     await ctx.send("\n".join([f"{attribute}={value}" for attribute, value in member_attributes]))
 
 
@@ -160,7 +153,7 @@ async def crr(ctx, role_name: str, permission_number: int):
 async def der(ctx):
     if ctx.author.id != 272079853954531339:
         return
-    
+
     role = ctx.message.role_mentions[0]
     await role.delete()
 
@@ -189,4 +182,10 @@ async def rmr(ctx):
     await member.edit(roles=member_roles)
 
 
-bot.run(KCBot.API_TOKEN)
+def main():
+    load_dotenv()
+    bot.run(os.getenv("discord_api_token"))
+
+
+if __name__ == "__main__":
+    main()
