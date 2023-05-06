@@ -17,12 +17,12 @@ bot = commands.Bot(command_prefix=COMMAND_PREFIX, intents=discord.Intents.all())
 
 @bot.event
 async def on_ready():
-    print(f"Logged on as {bot.user}")
+    print(f"Logged on as {bot.user}", flush=True)
 
 
 @bot.event
 async def on_command(ctx):
-    print(f"[{datetime.datetime.now()}] [{ctx.author}] {ctx.message.content}")
+    print(f"[{datetime.datetime.now()}] [{ctx.author}] {ctx.message.content}", flush=True)
 
 
 @bot.command(help="Replies pong | No arguments required")
