@@ -30,15 +30,13 @@ async def ping(ctx):
     await ctx.send("pong")
 
 
-@bot.command(help="Repeats a phrase a number of times | <content> <amount>")
-async def repeat(ctx, *args):
-    phrase, amount = " ".join(args[:-1]), int(args[-1])
-
+@bot.command(help="Repeats a phrase a number of times | <repetitions> <phrase>")
+async def repeat(ctx, repetitions: int, *, phrase: str):
     if ctx.message.mention_everyone:
         await ctx.send("Please refrain from mentioning everyone")
         return
 
-    for _ in range(min(25, amount)):
+    for _ in range(min(25, repetitions)):
         await ctx.send(phrase)
         await ctx.channel.purge(limit=1)
 
@@ -48,10 +46,8 @@ async def clear(ctx, amount: int):
     await ctx.channel.purge(limit=min(32, amount + 1))
 
 
-@bot.command(help="Make a wave | <phrase> <periods>")
-async def wave(ctx, *args):
-    phrase, periods = " ".join(args[:-1]), min(4, int(args[-1]))
-
+@bot.command(help="Make a wave | <periods> <phrase>")
+async def wave(ctx, periods: lambda x: min(4.0, float(x)), *, phrase: str):
     if ctx.message.mention_everyone:
         await ctx.send("Please refrain from mentioning everyone")
         return
@@ -97,26 +93,21 @@ async def info(ctx):
     await ctx.send('\n'.join(attributes))
 
 
-@bot.command(help="Evaluate python code | <expression>")
-async def pyeval(ctx, *args):
-    expression = " ".join(args)
+@bot.command(help="Evaluate python code (expressions may need to be wrapped in quotes) | <expression>")
+async def pyeval(ctx, expression: str):
     await ctx.send(f"{expression} evaluated to:\n```{eval(expression)}```")
 
 
-@bot.command(help="Encrypt plain text | <plain_text> <key>")
-async def encrypt(ctx, *args):
-    plain_text, key = " ".join(args[:-1]), int(args[-1])
-
+@bot.command(help="Encrypt plain text | <key> <plain_text>")
+async def encrypt(ctx, key: int, *, plain_text: str):
     cipher_text = "".join(chr(pow(ord(char), key, 143)) for char in plain_text)
 
     await ctx.channel.purge(limit=1)
     await ctx.send(f"Cipher text: ```{cipher_text}```")
 
 
-@bot.command(help="Decrypt cipher text | <cipher_text> <key>")
-async def decrypt(ctx, *args):
-    cipher_text, key = " ".join(args[:-1]), int(args[-1])
-
+@bot.command(help="Decrypt cipher text | <key> <cipher_text> ")
+async def decrypt(ctx, key: int, *, cipher_text: str):
     plain_text = "".join(chr(pow(ord(char), key, 143)) for char in cipher_text)
 
     await ctx.channel.purge(limit=1)
