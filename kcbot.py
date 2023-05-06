@@ -138,8 +138,8 @@ async def propullur(ctx):
     results = service.users().messages().list(userId="me", maxResults=1,
                                               q="from:noreply@steampowered.com").execute()
     message = service.users().messages().get(userId="me", id=results["messages"][0]["id"]).execute()
-    message_content = base64.b64decode(message["payload"]["parts"][0]["body"]["data"]).decode("utf-8")
-    steam_2fa_code = re.search("[A-Z0-9]{5}", message_content).group()
+    message_content = base64.urlsafe_b64decode(message["payload"]["parts"][0]["body"]["data"]).decode("utf-8")
+    steam_2fa_code = re.search(r"\n[A-Z0-9]{5}\s", message_content).group().strip()
 
     await ctx.send(f"This is the latest 2FA code for steam account propullur: {steam_2fa_code}")
 
