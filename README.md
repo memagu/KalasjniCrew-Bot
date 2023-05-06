@@ -1,2 +1,2 @@
-# KalsjniCrew-Bot
+# KalasjniCrew-Bot
 A discord bot
