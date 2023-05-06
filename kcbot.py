@@ -47,7 +47,7 @@ async def clear(ctx, amount: int):
 
 
 @bot.command(help="Make a wave | <periods> <phrase>")
-async def wave(ctx, periods: lambda x: min(4.0, float(x)), *, phrase: str):
+async def wave(ctx, periods: lambda x: min(8.0, float(x)), *, phrase: str):
     if ctx.message.mention_everyone:
         await ctx.send("Please refrain from mentioning everyone")
         return
@@ -122,7 +122,7 @@ async def decrypt(ctx, key: int, *, cipher_text: str):
     await ctx.send(f"Plain text: ```{plain_text}```")
 
 
-@bot.command(help="Get the latest steam 2fa code for propullur | No arguments required")
+@bot.command(help="Get the latest steam 2FA code for propullur | No arguments required")
 async def propullur(ctx):
     credentials = Credentials.from_authorized_user_info(
         {
