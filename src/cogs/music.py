@@ -29,7 +29,7 @@ class Music(commands.Cog):
     @staticmethod
     def yt_search(query: str) -> Optional[tuple[str, str]]:
         with YoutubeDL(OPTIONS_YOUTUBEDL) as ytdl:
-            info = ytdl.extract_info(f"ytsearch:%s" % query, download=False)["entries"][0]
+            info = ytdl.extract_info(f"ytsearch:{query}", download=False)["entries"][0]
             return info["title"], info["url"]
 
     def play_next(self) -> None:
@@ -75,6 +75,7 @@ class Music(commands.Cog):
     async def unpause(self, ctx: commands.Context) -> None:
         if self.voice_client is None:
             return
+
         self.is_paused = False
         self.voice_client.resume()
 
@@ -83,8 +84,8 @@ class Music(commands.Cog):
         if self.voice_client is None:
             return
 
-        self.voice_client.stop()
         self.music_queue.clear()
+        self.voice_client.stop()
         await self.voice_client.disconnect()
 
     @commands.command(help="Clear the music queue | No arguments required")
