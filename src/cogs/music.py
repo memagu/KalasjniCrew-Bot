@@ -1,3 +1,4 @@
+import asyncio
 from collections import deque
 from typing import Optional
 
@@ -8,8 +9,9 @@ from yt_dlp import YoutubeDL
 
 OPTIONS_YOUTUBEDL = {
     "format": "bestaudio",
-    "noplaylist": "True",
-    "quiet": "True"
+    "noplaylist": True,
+    "quiet": True,
+    "no_warnings": True
 }
 OPTIONS_FFMPEG = {
     "before_options": "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5",
@@ -22,8 +24,6 @@ class Music(commands.Cog):
         self.bot = bot
         self.music_queue = deque()
         self.voice_client: Optional[discord.VoiceClient] = None
-        self.is_playing = False
-        self.is_paused = False
         self.song_currently_played = None
 
     @staticmethod
@@ -32,16 +32,21 @@ class Music(commands.Cog):
             info = ytdl.extract_info(f"ytsearch:{query}", download=False)["entries"][0]
             return info["title"], info["url"]
 
-    def play_next(self) -> None:
+    async def play_next(self) -> None:
         if not self.music_queue:
-            self.is_playing = False
             self.song_currently_played = None
+            self.voice_client = await self.voice_client.disconnect()
             return
 
-        self.is_playing = True
         title, source_url = self.music_queue.popleft()
         self.song_currently_played = title
-        self.voice_client.play(discord.FFmpegPCMAudio(source_url, **OPTIONS_FFMPEG), after=lambda e: self.play_next())
+        self.voice_client.play(
+            discord.FFmpegPCMAudio(source_url, **OPTIONS_FFMPEG),
+            after=lambda _: asyncio.run_coroutine_threadsafe(
+                self.play_next(),
+                self.bot.loop
+            )
+        )
 
     @commands.command(aliases=["p"], help="Play music | <song name or url>")
     async def play(self, ctx: commands.Context, *, query: str) -> None:
@@ -50,59 +55,60 @@ class Music(commands.Cog):
             await ctx.send("You must be in a voice channel.")
             return
 
-        if self.voice_client is None:
+        if self.voice_client is None or self.voice_client.channel is None:
             self.voice_client = await voice_state.channel.connect(self_deaf=True)
 
-        if voice_state.channel != self.voice_client.channel:
+        if self.voice_client.channel != voice_state.channel:
             await self.voice_client.move_to(voice_state.channel)
 
         title, source_url = self.yt_search(query)
         self.music_queue.append((title, source_url))
         await ctx.send(f"Added {title} to the queue.")
 
-        if self.is_playing or self.is_paused:
+        if self.song_currently_played is not None:
             return
 
-        self.play_next()
+        await self.play_next()
 
-    @commands.command(aliases=["leave"], help="Stop playing music and clear the music queue | <OPTIONAL: amount = 1>")
-    async def skip(self, ctx: commands.Context, amount: int = 1) -> None:
-        for _ in range(min(len(self.music_queue), max(0, amount - 1))):
+    @commands.command(help="Skip the song currently being played | <amount (OPTIONAL)>")
+    async def skip(self, _, amount: int = 1) -> None:
+        amount = min(len(self.music_queue), max(0, amount - 1))
+        for _ in range(amount):
             self.music_queue.popleft()
 
         self.voice_client.stop()
 
-    @commands.command(help="Skip the song currently being played | No arguments required")
-    async def stop(self, ctx: commands.Context) -> None:
+    @commands.command(aliases=["leave"], help="Stop playing music and clear the music queue | No arguments required")
+    async def stop(self, _) -> None:
         if self.voice_client is None:
             return
 
         self.music_queue.clear()
         self.voice_client.stop()
-        self.voice_client = await self.voice_client.disconnect()
 
     @commands.command(help="Pause playing music | No arguments required")
-    async def pause(self, ctx: commands.Context) -> None:
-        if self.voice_client is None:
+    async def pause(self, _) -> None:
+        if self.voice_client is None or self.voice_client.is_paused():
             return
 
-        self.is_paused = True
         self.voice_client.pause()
 
     @commands.command(aliases=["resume"], help="Unpause paused music | No arguments required")
-    async def unpause(self, ctx: commands.Context) -> None:
-        if self.voice_client is None:
+    async def unpause(self, _) -> None:
+        if self.voice_client is None or not self.voice_client.is_paused():
             return
 
-        self.is_paused = False
         self.voice_client.resume()
 
     @commands.command(help="Clear the music queue | No arguments required")
-    async def clear(self, ctx: commands.Context) -> None:
-        if self.voice_client is None:
-            return
-
+    async def clear(self, _) -> None:
         self.music_queue.clear()
+
+    @commands.command(help="Remove a song from the music queue | <queue_position>")
+    async def remove(self, ctx: commands.Context, queue_position: int) -> None:
+        queue_position = min(len(self.music_queue) - 1, max(-len(self.music_queue), queue_position - 1))
+        del self.music_queue[min(len(self.music_queue) - 1, max(-len(self.music_queue), queue_position - 1))]
+        await ctx.send(f"Removed {self.music_queue[queue_position]} from the playlist")
 
     @commands.command(aliases=["q"], help="Print the music queue | No arguments required")
     async def queue(self, ctx: commands.Context) -> None:
@@ -112,7 +118,7 @@ class Music(commands.Cog):
 
         await ctx.send(f"Currently playing: {self.song_currently_played}")
 
-        if self.music_queue is None:
+        if not self.music_queue:
             return
 
         output_str = "\n".join(f"|{i: >4}. {title}" for i, (title, _) in enumerate(self.music_queue, 1))
@@ -123,6 +129,7 @@ class Music(commands.Cog):
 
         for chunk in (output_str[i:i + 2000] for i in range(0, len(output_str), 2000)):
             await ctx.send(chunk)
+
 
 
 async def setup(bot: commands.Bot):
