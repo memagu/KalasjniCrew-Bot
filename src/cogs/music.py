@@ -56,12 +56,30 @@ class Music(commands.Cog):
         if voice_state.channel != self.voice_client.channel:
             await self.voice_client.move_to(voice_state.channel)
 
-        self.music_queue.append(self.yt_search(query))
+        title, source_url = self.yt_search(query)
+        self.music_queue.append((title, source_url))
+        await ctx.send(f"Added {title} to the queue.")
 
         if self.is_playing or self.is_paused:
             return
 
         self.play_next()
+
+    @commands.command(aliases=["leave"], help="Stop playing music and clear the music queue | <OPTIONAL: amount = 1>")
+    async def skip(self, ctx: commands.Context, amount: int = 1) -> None:
+        for _ in range(min(len(self.music_queue), max(0, amount - 1))):
+            self.music_queue.popleft()
+
+        self.voice_client.stop()
+
+    @commands.command(help="Skip the song currently being played | No arguments required")
+    async def stop(self, ctx: commands.Context) -> None:
+        if self.voice_client is None:
+            return
+
+        self.music_queue.clear()
+        self.voice_client.stop()
+        await self.voice_client.disconnect()
 
     @commands.command(help="Pause playing music | No arguments required")
     async def pause(self, ctx: commands.Context) -> None:
@@ -78,15 +96,6 @@ class Music(commands.Cog):
 
         self.is_paused = False
         self.voice_client.resume()
-
-    @commands.command(aliases=["leave"], help="Stop playing music and clear the music queue | No arguments required")
-    async def stop(self, ctx: commands.Context) -> None:
-        if self.voice_client is None:
-            return
-
-        self.music_queue.clear()
-        self.voice_client.stop()
-        await self.voice_client.disconnect()
 
     @commands.command(help="Clear the music queue | No arguments required")
     async def clear(self, ctx: commands.Context) -> None:
@@ -106,7 +115,7 @@ class Music(commands.Cog):
         if self.music_queue is None:
             return
 
-        output_str = '\n'.join(f"{i: >4}. {title}" for i, (title, _) in enumerate(self.music_queue, 1))
+        output_str = "\n".join(f"|{i: >4}. {title}" for i, (title, _) in enumerate(self.music_queue, 1))
 
         if len(output_str) <= 2000:
             await ctx.send(output_str)
