@@ -79,7 +79,7 @@ class Music(commands.Cog):
 
         self.music_queue.clear()
         self.voice_client.stop()
-        await self.voice_client.disconnect()
+        self.voice_client = await self.voice_client.disconnect()
 
     @commands.command(help="Pause playing music | No arguments required")
     async def pause(self, ctx: commands.Context) -> None:
