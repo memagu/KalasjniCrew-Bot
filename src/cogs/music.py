@@ -131,7 +131,6 @@ class Music(commands.Cog):
             await ctx.send(chunk)
 
 
-
 async def setup(bot: commands.Bot):
     static_ffmpeg.add_paths()
     await bot.add_cog(Music(bot))
