@@ -14,7 +14,7 @@ class Debugging(commands.Cog):
         await ctx.send("pong")
 
     @commands.command(help="Get member information | <@member>")
-    async def info(self, ctx, member: discord.Member) -> None:
+    async def info(self, ctx: commands.Context, member: discord.Member) -> None:
         attributes = []
 
         for name in dir(member):
@@ -36,6 +36,10 @@ class Debugging(commands.Cog):
 
         for chunk in (attribute_str[i:i + 2000] for i in range(0, len(attribute_str), 2000)):
             await ctx.send(chunk)
+
+    @commands.command(help="Kills the bot process | No arguments required")
+    async def kill(self, _):
+        await self.bot.close()
 
 
 class Logging(commands.Cog):
