@@ -51,7 +51,7 @@ class Logging(commands.Cog):
         print(f"Logged on as {self.bot.user}", flush=True)
 
     @commands.Cog.listener()
-    async def on_command_error(self, ctx: commands.Context, error: discord.DiscordException):
+    async def on_command_error(self, _, error: discord.DiscordException):
         print(f"[{datetime.now()}] [ERROR] {error}", flush=True)
 
     @commands.Cog.listener()
