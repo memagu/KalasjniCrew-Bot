@@ -1,5 +1,6 @@
 import asyncio
 from collections import deque
+from dataclasses import dataclass, field
 from typing import Optional
 
 import discord
@@ -19,12 +20,17 @@ OPTIONS_FFMPEG = {
 }
 
 
+@dataclass
+class MusicInstance:
+    voice_client: Optional[discord.VoiceClient] = None
+    active_music: Optional[str] = None
+    music_queue: deque[tuple[str, str]] = field(default_factory=deque)
+
+
 class Music(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        self.music_queue = deque()
-        self.voice_client: Optional[discord.VoiceClient] = None
-        self.song_currently_played = None
+        self.music_instances: dict[int, MusicInstance] = {}
 
     @staticmethod
     def yt_search(query: str) -> Optional[tuple[str, str]]:
@@ -32,18 +38,20 @@ class Music(commands.Cog):
             info = ytdl.extract_info(f"ytsearch:{query}", download=False)["entries"][0]
             return info["title"], info["url"]
 
-    async def play_next(self) -> None:
-        if not self.music_queue:
-            self.song_currently_played = None
-            self.voice_client = await self.voice_client.disconnect()
+    async def play_next(self, guild_id: int) -> None:
+        music_instance = self.music_instances[guild_id]
+
+        if not music_instance.music_queue:
+            await music_instance.voice_client.disconnect()
+            del self.music_instances[guild_id]
             return
 
-        title, source_url = self.music_queue.popleft()
-        self.song_currently_played = title
-        self.voice_client.play(
+        title, source_url = music_instance.music_queue.popleft()
+        music_instance.song_currently_played = title
+        music_instance.voice_client.play(
             discord.FFmpegPCMAudio(source_url, **OPTIONS_FFMPEG),
             after=lambda _: asyncio.run_coroutine_threadsafe(
-                self.play_next(),
+                self.play_next(guild_id),
                 self.bot.loop
             )
         )
@@ -55,73 +63,92 @@ class Music(commands.Cog):
             await ctx.send("You must be in a voice channel.")
             return
 
-        if self.voice_client is None or self.voice_client.channel is None:
-            self.voice_client = await voice_state.channel.connect(self_deaf=True)
+        if ctx.guild.id not in self.music_instances:
+            self.music_instances[ctx.guild.id] = MusicInstance(
+                voice_client=await voice_state.channel.connect(self_deaf=True),
+            )
 
-        if self.voice_client.channel != voice_state.channel:
-            await self.voice_client.move_to(voice_state.channel)
+        music_instance = self.music_instances[ctx.guild.id]
+
+        if music_instance.voice_client.channel != voice_state.channel:
+            await music_instance.voice_client.move_to(voice_state.channel)
 
         title, source_url = self.yt_search(query)
-        self.music_queue.append((title, source_url))
+        music_instance.music_queue.append((title, source_url))
         await ctx.send(f"Added {title} to the queue.")
 
-        if self.song_currently_played is not None:
+        if music_instance.active_music is not None:
             return
 
-        await self.play_next()
+        await self.play_next(ctx.guild.id)
 
     @commands.command(help="Skip the song currently being played | <amount (OPTIONAL)>")
-    async def skip(self, _, amount: int = 1) -> None:
-        amount = min(len(self.music_queue), max(0, amount - 1))
-        for _ in range(amount):
-            self.music_queue.popleft()
+    async def skip(self, ctx: commands.Context, amount: int = 1) -> None:
+        music_instance = self.music_instances[ctx.guild.id]
 
-        self.voice_client.stop()
+        amount = max(min(amount - 1, len(music_instance.music_queue)), 0)
+        for _ in range(amount):
+            music_instance.music_queue.popleft()
+
+        music_instance.voice_client.stop()
 
     @commands.command(aliases=["leave"], help="Stop playing music and clear the music queue | No arguments required")
-    async def stop(self, _) -> None:
-        if self.voice_client is None:
+    async def stop(self, ctx: commands.Context) -> None:
+        if ctx.guild.id not in self.music_instances:
             return
 
-        self.music_queue.clear()
-        self.voice_client.stop()
+        music_instance = self.music_instances[ctx.guild.id]
+
+        music_instance.music_queue.clear()
+        music_instance.voice_client.stop()
 
     @commands.command(help="Pause playing music | No arguments required")
-    async def pause(self, _) -> None:
-        if self.voice_client is None or self.voice_client.is_paused():
-            return
-
-        self.voice_client.pause()
+    async def pause(self, ctx: commands.Context) -> None:
+        if ctx.guild.id in self.music_instances:
+            self.music_instances[ctx.guild.id].voice_client.pause()
 
     @commands.command(aliases=["resume"], help="Unpause paused music | No arguments required")
-    async def unpause(self, _) -> None:
-        if self.voice_client is None or not self.voice_client.is_paused():
-            return
-
-        self.voice_client.resume()
+    async def unpause(self, ctx: commands.Context) -> None:
+        if ctx.guild.id in self.music_instances:
+            self.music_instances[ctx.guild.id].voice_client.resume()
 
     @commands.command(help="Clear the music queue | No arguments required")
-    async def clear(self, _) -> None:
-        self.music_queue.clear()
+    async def clear(self, ctx: commands.Context) -> None:
+        if ctx.guild.id in self.music_instances:
+            self.music_instances[ctx.guild.id].music_queue.clear()
 
     @commands.command(help="Remove a song from the music queue | <queue_position>")
     async def remove(self, ctx: commands.Context, queue_position: int) -> None:
-        queue_position = min(len(self.music_queue) - 1, max(-len(self.music_queue), queue_position - 1))
-        del self.music_queue[min(len(self.music_queue) - 1, max(-len(self.music_queue), queue_position - 1))]
-        await ctx.send(f"Removed {self.music_queue[queue_position]} from the playlist")
+        if ctx.guild.id not in self.music_instances:
+            return
+
+        music_instance = self.music_instances[ctx.guild.id]
+
+        queue_position = min(len(music_instance.music_queue) - 1,
+                             max(-len(music_instance.music_queue), queue_position - 1))
+
+        title, _ = music_instance.music_queue[queue_position]
+        del music_instance.music_queue[queue_position]
+
+        await ctx.send(f"Removed {title} from the playlist")
 
     @commands.command(aliases=["q"], help="Print the music queue | No arguments required")
     async def queue(self, ctx: commands.Context) -> None:
-        if self.song_currently_played is None:
+        if ctx.guild.id not in self.music_instances:
+            return
+
+        music_instance = self.music_instances[ctx.guild.id]
+
+        if music_instance.active_music is None:
             await ctx.send("The music queue is empty")
             return
 
-        await ctx.send(f"Currently playing: {self.song_currently_played}")
+        await ctx.send(f"Currently playing: {music_instance.active_music}")
 
-        if not self.music_queue:
+        if not music_instance.music_queue:
             return
 
-        output_str = "\n".join(f"|{i: >4}. {title}" for i, (title, _) in enumerate(self.music_queue, 1))
+        output_str = "\n".join(f"|{i: >4}. {title}" for i, (title, _) in enumerate(music_instance.music_queue, 1))
 
         if len(output_str) <= 2000:
             await ctx.send(output_str)
