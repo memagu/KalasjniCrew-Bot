@@ -47,7 +47,7 @@ class Music(commands.Cog):
             return
 
         title, source_url = music_instance.music_queue.popleft()
-        music_instance.song_currently_played = title
+        music_instance.active_music = title
         music_instance.voice_client.play(
             discord.FFmpegPCMAudio(source_url, **OPTIONS_FFMPEG),
             after=lambda _: asyncio.run_coroutine_threadsafe(
