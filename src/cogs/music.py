@@ -157,6 +157,31 @@ class Music(commands.Cog):
         for chunk in (output_str[i:i + 2000] for i in range(0, len(output_str), 2000)):
             await ctx.send(chunk)
 
+    @commands.command(help="Change the position of a song in the queue | <old_index> <new_index>")
+    async def move(self, ctx: commands.Context, old_index: int, new_index: int) -> None:
+        if ctx.guild.id not in self.music_instances:
+            return
+
+        music_instance = self.music_instances[ctx.guild.id]
+        music_queue = music_instance.music_queue
+
+        if not music_queue:
+            return
+
+        old_index -= 1
+        new_index -= 1
+
+        if not (0 <= old_index < len(music_queue) and 0 <= new_index < len(music_queue)):
+            await ctx.send(f"Both indices must lie in the range: {1}-{len(music_queue)}")
+            return
+
+        title, source_url = music_queue[old_index]
+
+        music_queue.insert(new_index, (title, source_url))
+        del music_queue[old_index + (old_index >= new_index)]
+
+        await ctx.send(f"Successfully moved {title} to position {new_index + 1} in the queue")
+
 
 async def setup(bot: commands.Bot):
     static_ffmpeg.add_paths()
