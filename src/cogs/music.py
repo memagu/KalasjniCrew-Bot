@@ -60,7 +60,7 @@ class Music(commands.Cog):
     async def play(self, ctx: commands.Context, *, query: str) -> None:
         voice_state = ctx.author.voice
         if voice_state is None:
-            await ctx.send("You must be in a voice channel.")
+            await ctx.send("You must be in a voice channel")
             return
 
         if ctx.guild.id not in self.music_instances:
@@ -75,7 +75,7 @@ class Music(commands.Cog):
 
         title, source_url = self.yt_search(query)
         music_instance.music_queue.append((title, source_url))
-        await ctx.send(f"Added {title} to the queue.")
+        await ctx.send(f"Added {title} to the queue")
 
         if music_instance.active_music is not None:
             return
