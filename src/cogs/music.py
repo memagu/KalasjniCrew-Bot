@@ -1,6 +1,7 @@
 import asyncio
 from collections import deque
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Optional
 
 import discord
@@ -66,6 +67,9 @@ class Music(commands.Cog):
         if ctx.guild.id not in self.music_instances:
             self.music_instances[ctx.guild.id] = MusicInstance(
                 voice_client=await voice_state.channel.connect(self_deaf=True),
+            )
+            self.music_instances[ctx.guild.id].voice_client.play(
+                discord.FFmpegPCMAudio("../assets/audio/obi_wan_hello_there.mp3")
             )
 
         music_instance = self.music_instances[ctx.guild.id]
