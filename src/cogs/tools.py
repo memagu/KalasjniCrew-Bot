@@ -58,7 +58,7 @@ class Tools(commands.Cog):
 
     @commands.command(help="Send songs stored bangers | No arguments required")
     async def bangers(self, ctx: commands.Context) -> None:
-        for filepath in os.scandir("../assets/audio"):
+        for filepath in os.scandir("../assets/music_bank"):
             await ctx.send(file=discord.File(filepath))
 
     @commands.command(help="Evaluate a python expression (expression may need to be wrapped in quotes) | <expression>")
