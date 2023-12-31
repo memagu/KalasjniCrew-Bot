@@ -61,7 +61,7 @@ class Tools(commands.Cog):
         for filepath in os.scandir("../assets/audio"):
             await ctx.send(file=discord.File(filepath))
 
-    @commands.command(help="Evaluate python code (expressions may need to be wrapped in quotes) | <expression>")
+    @commands.command(help="Evaluate a python expression (expression may need to be wrapped in quotes) | <expression>")
     async def pyeval(self, ctx: commands.Context, expression: str) -> None:
         await ctx.send(f"{expression} evaluated to:\n```{eval(expression)}```")
 
