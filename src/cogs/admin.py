@@ -1,5 +1,6 @@
 import discord
 from discord.ext import commands
+import requests
 
 
 class Admin(commands.Cog):
@@ -48,6 +49,21 @@ class Admin(commands.Cog):
         member_roles.remove(role)
 
         await member.edit(roles=member_roles)
+
+
+    @commands.command(hidden=True, help="Get the bots external IP-address | No arguments required")
+    async def ip(self, ctx: commands.Context) -> None:
+        if ctx.author.id not in self.allowed_users:
+            return
+
+        response = requests.get("https://icanhazip.com")
+
+        if not response.ok:
+            return
+
+        ip_address = response.text.strip()
+
+        await ctx.send(ip_address)
 
 
 async def setup(bot: commands.Bot) -> None:
