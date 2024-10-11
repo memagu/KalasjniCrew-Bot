@@ -1,12 +1,8 @@
-import base64
 import math
 import os
-import re
 
 import discord
 from discord.ext import commands
-from google.oauth2.credentials import Credentials
-from googleapiclient.discovery import build
 
 
 class Tools(commands.Cog):
@@ -64,26 +60,6 @@ class Tools(commands.Cog):
     @commands.command(help="Evaluate a python expression (expression may need to be wrapped in quotes) | <expression>")
     async def pyeval(self, ctx: commands.Context, expression: str) -> None:
         await ctx.send(f"{expression} evaluated to:\n```{eval(expression)}```")
-
-    @commands.command(help="Get the latest steam 2FA code for propullur | No arguments required")
-    async def propullur(self, ctx: commands.Context) -> None:
-        credentials = Credentials.from_authorized_user_info(
-            {
-                "refresh_token": os.getenv("GMAIL_REFRESH_TOKEN"),
-                "client_id": os.getenv("GMAIL_CLIENT_ID"),
-                "client_secret": os.getenv("GMAIL_CLIENT_SECRET"),
-            },
-            ("https://www.googleapis.com/auth/gmail.readonly",)
-        )
-        service = build("gmail", "v1", credentials=credentials)
-
-        results = service.users().messages().list(userId="me", maxResults=1,
-                                                  q="from:noreply@steampowered.com").execute()
-        message = service.users().messages().get(userId="me", id=results["messages"][0]["id"]).execute()
-        message_content = base64.urlsafe_b64decode(message["payload"]["parts"][0]["body"]["data"]).decode("utf-8")
-        steam_2fa_code = re.search(r"\n[A-Z0-9]{5}\s", message_content).group().strip()
-
-        await ctx.send(f"This is the latest 2FA code for steam account propullur: {steam_2fa_code}")
 
 
 class RSA(commands.Cog):
