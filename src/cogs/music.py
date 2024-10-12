@@ -30,10 +30,12 @@ class _YouTube:
 
     @classmethod
     def search(cls, query: str) -> tuple[tuple[str, str]]:
-        with YoutubeDL(cls.OPTIONS) as ytdl:
+        with YoutubeDL(cls.OPTIONS) as ydl:
+            ydl._ies = {"Youtube": ydl.get_info_extractor("Youtube")}
+
             query = query if cls.is_valid_url(query) else "ytsearch1:" + query
 
-            result = ytdl.extract_info(query, download=False)
+            result = ydl.extract_info(query, download=False)
 
             if "entries" in result:
                 return tuple((entry["title"], entry["url"]) for entry in result["entries"] if entry is not None)
