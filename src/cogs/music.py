@@ -20,8 +20,7 @@ class _YouTube:
         "format": "bestaudio/best",
         "quiet": True,
         "no_warnings": True,
-        "ignoreerrors": True,
-        "clean_infojson": True
+        "ignoreerrors": True
     }
 
     @staticmethod
