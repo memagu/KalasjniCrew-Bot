@@ -31,7 +31,11 @@ class _YouTube:
     @classmethod
     def search(cls, query: str) -> tuple[tuple[str, str]]:
         with YoutubeDL(cls.OPTIONS) as ydl:
-            ydl._ies = {"Youtube": ydl.get_info_extractor("Youtube")}
+            ydl._ies = {
+                "Youtube": ydl.get_info_extractor("Youtube"),
+                "YoutubeSearch": ydl.get_info_extractor("YoutubeSearch"),
+                "YoutubeTab": ydl.get_info_extractor("YoutubeTab"),
+            }
 
             query = query if cls.is_valid_url(query) else "ytsearch1:" + query
 
