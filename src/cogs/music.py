@@ -1,7 +1,7 @@
 import asyncio
 from collections import deque
 from dataclasses import dataclass, field
-from pathlib import Path
+import re
 from typing import Optional
 
 import discord
@@ -9,17 +9,37 @@ from discord.ext import commands
 import static_ffmpeg
 from yt_dlp import YoutubeDL
 
-OPTIONS_YOUTUBEDL = {
-    "format": "bestaudio",
-    "noplaylist": True,
-    "quiet": True,
-    "no_warnings": True
-}
 OPTIONS_FFMPEG = {
     "before_options": "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5",
     "options": "-vn"
 }
 
+
+class _YouTube:
+    OPTIONS = {
+        "format": "bestaudio/best",
+        "quiet": True,
+        "no_warnings": True,
+        "ignoreerrors": True,
+        "clean_infojson": True
+    }
+
+    @staticmethod
+    def is_valid_url(url: str) -> bool:
+        youtube_url_regex = re.compile(r"(https?://)?(www\.)?(youtube|youtu|youtube-nocookie)\.(com|be)/.+")
+        return youtube_url_regex.match(url) is not None
+
+    @classmethod
+    def search(cls, query: str) -> tuple[tuple[str, str]]:
+        with YoutubeDL(cls.OPTIONS) as ytdl:
+            query = query if cls.is_valid_url(query) else "ytsearch1:" + query
+
+            result = ytdl.extract_info(query, download=False)
+
+            if "entries" in result:
+                return tuple((entry["title"], entry["url"]) for entry in result["entries"] if entry is not None)
+
+            return ((result["title"], result["url"]),)
 
 @dataclass
 class MusicInstance:
@@ -32,12 +52,6 @@ class Music(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.music_instances: dict[int, MusicInstance] = {}
-
-    @staticmethod
-    def yt_search(query: str) -> Optional[tuple[str, str]]:
-        with YoutubeDL(OPTIONS_YOUTUBEDL) as ytdl:
-            info = ytdl.extract_info(f"ytsearch:{query}", download=False)["entries"][0]
-            return info["title"], info["url"]
 
     async def play_next(self, guild_id: int) -> None:
         music_instance = self.music_instances[guild_id]
@@ -77,9 +91,10 @@ class Music(commands.Cog):
         if music_instance.voice_client.channel != voice_state.channel:
             await music_instance.voice_client.move_to(voice_state.channel)
 
-        title, source_url = self.yt_search(query)
-        music_instance.music_queue.append((title, source_url))
-        await ctx.send(f"Added {title} to the queue")
+        songs = _YouTube.search(query)
+        music_instance.music_queue.extend(songs)
+        for title, *_ in songs:
+            await ctx.send(f"Added {title} to the queue")
 
         if music_instance.active_music is not None:
             return
