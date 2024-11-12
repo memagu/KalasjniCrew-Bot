@@ -206,6 +206,17 @@ class Music(commands.Cog):
 
         await ctx.send(f"Successfully moved {title} to position {new_index + 1} in the queue")
 
+    @commands.command(help="Search for music | <song name or url>")
+    async def search(self, ctx: commands.Context, *, query: str) -> None:
+        output_str = "\n".join(f"{title}: {url}" for title, url in _YouTube.search(query))
+
+        if len(output_str) <= 2000:
+            await ctx.send(output_str)
+            return
+
+        for chunk in (output_str[i:i + 2000] for i in range(0, len(output_str), 2000)):
+            await ctx.send(chunk)
+
 
 async def setup(bot: commands.Bot):
     static_ffmpeg.add_paths()
