@@ -6,7 +6,6 @@ from typing import Optional
 
 import discord
 from discord.ext import commands
-# import static_ffmpeg
 from yt_dlp import YoutubeDL
 
 OPTIONS_FFMPEG = {
@@ -220,5 +219,4 @@ class Music(commands.Cog):
 
 
 def setup(bot: commands.Bot):
-    # static_ffmpeg.add_paths()
     bot.add_cog(Music(bot))
