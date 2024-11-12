@@ -6,7 +6,7 @@ from typing import Optional
 
 import discord
 from discord.ext import commands
-import static_ffmpeg
+# import static_ffmpeg
 from yt_dlp import YoutubeDL
 
 OPTIONS_FFMPEG = {
@@ -85,8 +85,9 @@ class Music(commands.Cog):
 
         if ctx.guild.id not in self.music_instances:
             self.music_instances[ctx.guild.id] = MusicInstance(
-                voice_client=await voice_state.channel.connect(self_deaf=True),
+                voice_client=await voice_state.channel.connect(),
             )
+            await ctx.guild.change_voice_state(channel=ctx.channel, self_deaf=True)
             self.music_instances[ctx.guild.id].voice_client.play(
                 discord.FFmpegPCMAudio("../assets/audio/obi_wan_hello_there.mp3")
             )
@@ -218,6 +219,6 @@ class Music(commands.Cog):
             await ctx.send(chunk)
 
 
-async def setup(bot: commands.Bot):
-    static_ffmpeg.add_paths()
-    await bot.add_cog(Music(bot))
+def setup(bot: commands.Bot):
+    # static_ffmpeg.add_paths()
+    bot.add_cog(Music(bot))

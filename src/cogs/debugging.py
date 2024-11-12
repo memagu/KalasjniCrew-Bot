@@ -59,6 +59,6 @@ class Logging(commands.Cog):
         print(f"[{datetime.now()}] [{ctx.author}] {ctx.message.content}", flush=True)
 
 
-async def setup(bot: commands.Bot) -> None:
-    await bot.add_cog(Debugging(bot))
-    await bot.add_cog(Logging(bot))
+def setup(bot: commands.Bot) -> None:
+    bot.add_cog(Debugging(bot))
+    bot.add_cog(Logging(bot))

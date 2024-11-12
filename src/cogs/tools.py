@@ -82,6 +82,6 @@ class RSA(commands.Cog):
         await ctx.send(f"Plain text: ```{plain_text}```")
 
 
-async def setup(bot: commands.Bot):
-    await bot.add_cog(Tools(bot))
-    await bot.add_cog(RSA(bot, 143))
+def setup(bot: commands.Bot):
+    bot.add_cog(Tools(bot))
+    bot.add_cog(RSA(bot, 143))

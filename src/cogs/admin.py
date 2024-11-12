@@ -66,5 +66,5 @@ class Admin(commands.Cog):
         await ctx.send(ip_address)
 
 
-async def setup(bot: commands.Bot) -> None:
-    await bot.add_cog(Admin(bot, {272079853954531339}))
+def setup(bot: commands.Bot) -> None:
+    bot.add_cog(Admin(bot, {272079853954531339}))
