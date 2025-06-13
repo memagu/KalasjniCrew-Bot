@@ -1,70 +1,90 @@
-import discord
-from discord.ext import commands
+from discord import ApplicationContext, Bot, Cog, Member, Option, Permissions, Role, slash_command
 import requests
 
 
-class Admin(commands.Cog):
-    def __init__(self, bot: commands.Bot, allowed_users: set[int]):
+class Admin(Cog):
+    def __init__(self, bot: Bot, allowed_users: set[int]):
         self.bot = bot
         self.allowed_users = allowed_users
 
-    @commands.command(hidden=True, help="Create a role | <role_name> <permission_number>")
-    async def crr(self, ctx: commands.Context, role_name: str, permission_number: int) -> None:
-        if ctx.author.id not in self.allowed_users:
+    def is_allowed(self, ctx: ApplicationContext) -> bool:
+        return ctx.author.id in self.allowed_users
+
+    @slash_command(description="Create a role with custom permissions")
+    async def create_role(
+        self,
+        ctx: ApplicationContext,
+        role_name: Option(str, description="Name of the role"),
+        permission_number: Option(int, description="Permission number"),
+    ) -> None:
+        if not self.is_allowed(ctx):
+            await ctx.respond("You are not authorized to use this command.", ephemeral=True)
             return
 
-        guild = ctx.guild
-        permissions = discord.Permissions(permissions=permission_number)
+        permissions = Permissions(permissions=permission_number)
+        await ctx.guild.create_role(name=role_name, permissions=permissions)
+        await ctx.respond(f"Role `{role_name}` created successfully!")
 
-        await guild.create_role(name=role_name, permissions=permissions)
-
-    @commands.command(hidden=True, help="Delete a role | <@role_mention>")
-    async def der(self, ctx: commands.Context, role: discord.Role) -> None:
-        if ctx.author.id not in self.allowed_users:
+    @slash_command(description="Delete a role from the server")
+    async def delete_role(
+        self,
+        ctx: ApplicationContext,
+        role: Option(Role, description="Role to delete"),
+    ) -> None:
+        if not self.is_allowed(ctx):
+            await ctx.respond("You are not authorized to use this command.", ephemeral=True)
             return
 
-        # role = ctx.message.role_mentions[0]
         await role.delete()
+        await ctx.respond(f"Role `{role.name}` has been deleted.")
 
-    @commands.command(hidden=True, help="Give a member a role | <@member> <@role>")
-    async def gvr(self, ctx: commands.Context, member: discord.Member, role: discord.Role) -> None:
-        if ctx.author.id not in self.allowed_users:
+    @slash_command(description="Give a member a role")
+    async def give_role(
+        self,
+        ctx: ApplicationContext,
+        member: Option(Member, description="Member to give the role"),
+        role: Option(Role, description="Role to give"),
+    ) -> None:
+        if not self.is_allowed(ctx):
+            await ctx.respond("You are not authorized to use this command.", ephemeral=True)
             return
 
-        # member = ctx.message.mentions[0]
-        # role = ctx.message.role_mentions[0]
-        member_roles = member.roles
-        member_roles.append(role)
+        await member.add_roles(role)
+        await ctx.respond(f"Role `{role.name}` added to {member.mention}.")
 
-        await member.edit(roles=member_roles)
-
-    @commands.command(hidden=True, help="Remove a role from a member | <@member> <@role>")
-    async def rmr(self, ctx: commands.Context, member: discord.Member, role: discord.Role) -> None:
-        if ctx.author.id not in self.allowed_users:
+    @slash_command(description="Remove a role from a member")
+    async def remove_role(
+        self,
+        ctx: ApplicationContext,
+        member: Option(Member, description="Member to remove the role from"),
+        role: Option(Role, description="Role to remove"),
+    ) -> None:
+        if not self.is_allowed(ctx):
+            await ctx.respond("You are not authorized to use this command.", ephemeral=True)
             return
 
-        # member = ctx.message.mentions[0]
-        # role = ctx.message.role_mentions[0]
-        member_roles = member.roles
-        member_roles.remove(role)
+        await member.remove_roles(role)
+        await ctx.respond(f"Role `{role.name}` removed from {member.mention}.")
 
-        await member.edit(roles=member_roles)
-
-
-    @commands.command(hidden=True, help="Get the bots external IP-address | No arguments required")
-    async def ip(self, ctx: commands.Context) -> None:
-        if ctx.author.id not in self.allowed_users:
+    @slash_command(description="Get the bot's external IP address")
+    async def ip(
+        self,
+        ctx: ApplicationContext,
+    ) -> None:
+        if not self.is_allowed(ctx):
+            await ctx.respond("You are not authorized to use this command.", ephemeral=True)
             return
 
         response = requests.get("https://icanhazip.com")
 
         if not response.ok:
+            await ctx.respond("Failed to get IP address.")
             return
 
         ip_address = response.text.strip()
+        await ctx.respond(f"External IP Address: `{ip_address}`")
 
-        await ctx.send(ip_address)
 
-
-def setup(bot: commands.Bot) -> None:
+def setup(bot: Bot) -> None:
     bot.add_cog(Admin(bot, {272079853954531339}))
+
