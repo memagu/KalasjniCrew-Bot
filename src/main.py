@@ -1,3 +1,4 @@
+import logging
 import os
 from pathlib import Path
 
@@ -8,11 +9,10 @@ COG_DIRECTORY = Path("./src/cogs")
 
 
 def load_cogs(bot: discord.Bot) -> None:
-    print("coggin'")
     for filename in COG_DIRECTORY.rglob("*.py"):
-        print(filename)
-        extension_path: str = filename.with_suffix("").as_posix().replace("/", ".").removeprefix("src.")  # Ugly
-        bot.load_extension(extension_path)
+        bot.load_extension(
+            filename.relative_to(COG_DIRECTORY.parent).with_suffix("").as_posix().replace("/", ".")
+        )
 
 
 def main() -> None:
