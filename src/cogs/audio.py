@@ -323,6 +323,14 @@ class PlaybackInstance:
         self.voice_client.stop()
         return amount
 
+    async def clear(self) -> None:
+        self.audio_queue.clear()
+
+        self.query_queue.empty()
+        self._enqueue(None)
+        await asyncio.to_thread(self._query_worker_td.join)
+
+
     async def stop(self) -> None:
         self.audio_queue.clear()
 
@@ -458,7 +466,7 @@ class Audio(Cog):
         self,
         ctx: ApplicationContext
     ) -> None:
-        pass
+        ctx.respond("This functionality is not yet implemented, use /stop + /play instead")
 
     @slash_command(description="Remove a track from the queue | <queue position>")
     async def remove(
@@ -477,6 +485,7 @@ class Audio(Cog):
         if playback_instance is not None:
             playback_instance.shuffle()
 
+        ctx.respond("Shuffling queue")
 
 def setup(bot: Bot):
     bot.add_cog(Audio(bot))
