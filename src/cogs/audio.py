@@ -5,7 +5,8 @@ from pathlib import Path
 import re
 from typing import Generator, Iterable, Never, Optional, no_type_check
 
-from discord import ApplicationContext, AudioSource, Bot, Cog, FFmpegPCMAudio, Option, VoiceClient, slash_command
+from discord import ApplicationContext, Bot, Cog, FFmpegPCMAudio, Option, VoiceClient, slash_command
+from discord.channel import VocalGuildChannel
 from dotenv import load_dotenv
 import spotipy
 from spotipy import SpotifyClientCredentials
@@ -75,7 +76,7 @@ class Youtube:
     SEARCH_OPTIONS = COMMON_OPTIONS | {
         "skip_download": True,
         "flat_playlist": True,
-        "extract_flat": "in_playlist"
+        "extract_flat": "in_playlist",
     }
     DOWNLOAD_OPTIONS = COMMON_OPTIONS | {
         "format": "bestaudio[ext=webm]/bestaudio[ext=m4a]/bestaudio",
@@ -84,7 +85,8 @@ class Youtube:
         "buffer_size": "16K",
         "retries": 10,
         "fragment_retries": 10,
-        "file_access_retries": 3
+        "file_access_retries": 3,
+        "outtmpl": "%(title)s [%(id)s].%(ext)s"
     }
 
     @classmethod
@@ -116,7 +118,7 @@ class Youtube:
 
     @classmethod
     def download(cls, video_ids: Iterable[str], download_dir: Path) -> None:
-        with YoutubeDL(cls.DOWNLOAD_OPTIONS | {"paths": {"home": download_dir}}) as ydl:
+        with YoutubeDL(cls.DOWNLOAD_OPTIONS | {"paths": {"home": str(download_dir)}}) as ydl:
                 # ydl._ies = {
                 #     "Youtube": ydl.get_info_extractor("Youtube"),
                 # }
@@ -225,13 +227,15 @@ class AudioFetcher:
     @staticmethod
     def get_files_and_titles(query: str) -> Generator[tuple[Path, str], None, None]:
         for video_id in AudioFetcher._search(query):
-            file_pattern = f"*[{video_id}]*"
+            file_pattern = fr"*{video_id}*"
             file = FileCache.get_file(file_pattern)
 
             if file is None:
-                Youtube.download(video_id, FileCache.CACHE_DIR)
+                Youtube.download((video_id,), FileCache.CACHE_DIR)
                 file = FileCache.get_file(file_pattern)
-                assert file is not None
+
+            if file is None:
+                continue
 
             title = file.stem.rsplit(' ', maxsplit=1)[0]
             FileCache.evict_cache()
@@ -239,10 +243,10 @@ class AudioFetcher:
             yield (file, title)
 
 
-class AudioManager:
+class PlaybackInstance:
     GREETING_AUDIO_PATH = Path("./assets/audio/obi_wan_hello_there.mp3")
 
-    def __init__(self, voice_client = VoiceClient | None = None):
+    def __init__(self, voice_client: VoiceClient):
         self.voice_client = voice_client
         self.audio_queue: deque[tuple[Path, str]] = deque()
         self.query_queue: asyncio.Queue[str] = asyncio.Queue()
@@ -254,47 +258,59 @@ class AudioManager:
                 for file_title_pair in AudioFetcher.get_files_and_titles(query):
                     self.audio_queue.append(file_title_pair)
 
+                    if not voice_client.is_playing():
+                        await self.play_next()
 
-        asyncio.create_task(queue_and_play())
+        self.download_loop = asyncio.create_task(queue_and_play())
 
-    def join() -> None:
+    async def join(
+        self,
+        channel: VocalGuildChannel
+    ) -> None:
+        await self.voice_client.move_to(channel)
+        self.greet()
+
+    def greet(self) -> None:
+        self.voice_client.play(FFmpegPCMAudio(str(self.GREETING_AUDIO_PATH)))
+
+    async def play_next(self) -> None:
+        if not self.audio_queue:
+            await self.voice_client.disconnect()
+            return
+
+        audio_file, _ = self.audio_queue[0]
+        self.voice_client.play(
+            FFmpegPCMAudio(str(audio_file)),
+            after=lambda e: asyncio.run_coroutine_threadsafe(
+                self.play_next(),
+                self.voice_client.loop
+            ) if e is None else None
+        )
+
+    def pause(self) -> None:
+        self.voice_client.pause()
+
+    def resume(self) -> None:
+        self.voice_client.resume()
+
+    def skip(self, amount: int) -> int:
+        amount = min(max(0, amount), len(self.audio_queue))
+        for _ in range(amount):
+            self.audio_queue.popleft()
         
+        self.voice_client.stop()
+        return amount
 
-    async def queue_and_play(video_ids: Iterable[str]):
-        for audio_file, title in 
-
-
-
+    async def stop(self) -> None:
+        self.download_loop.cancel()
+        self.audio_queue.clear()
+        self.voice_client.stop()
+        await self.voice_client.disconnect()
 
 class Audio(Cog):
-    OPTIONS_FFMPEG = {
-        "before_options": "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5",
-        "options": "-vn"
-    }
-
-    def __init__(self, _bot: Bot, audio_cache_dir: Path, greeting_audio_path: Path):
+    def __init__(self, _bot: Bot):
         self._bot = _bot
-        self._audio_instances: dict[int, AudioPlayerInstance] = {}
-        self._spotify = Spotify()
-        self._youtube = Youtube()
-        self._file_cache = FileCache(audio_cache_dir)
-        self._greeting_audio_path = greeting_audio_path
-        self._fetch_queue = asyncio.Queue()
-
-        asyncio.create_task(self.fetch_and_queue_audio(self._fetch_queue))
-
-    
-    async def fetch_and_queue_audio(self, task_queue: asyncio.Queue[tuple[str, int]]) -> None:
-        while True:
-            video_id, guild_id = await task_queue.get()
-
-            file = self._file_cache.get_file(f"*[{video_id}]*")
-            
-            if file is None:
-                self._youtube.download((video_id,), self._file_cache.cache_dir)
-
-            file = self._file_cache.get_file(f"*[{video_id}]*")
-            self._audio_instances[guild_id].queue.append(file)
+        self._playback_instances: dict[int, PlaybackInstance] = {}
 
     @slash_command(description="Play audio | <track name or URL>")
     async def play(
@@ -302,16 +318,25 @@ class Audio(Cog):
         ctx: ApplicationContext,
         query: Option(str, description="Audio name or URL")
     ) -> None:
-        guild_id = ctx.guild.id
-        video_ids = self._search(query)
-        ctx.respond("Adding requested audio to queue")
+        user_voice_state = ctx.author.voice
+        if user_voice_state is None:
+            await ctx.respond("You must be in a voice channel")
+            return
 
-        for fetch_task in map((video_id, guild_id) for video_id in video_ids):
-            self._fetch_queue.put_nowait(fetch_task)
+        if ctx.guild.id not in self._playback_instances:
+            user_voice_channel = user_voice_state.channel
+            assert user_voice_channel is not None
 
-        ctx.defer()
+            playback_instance = self._playback_instances[ctx.guild.id] = PlaybackInstance(
+                await user_voice_channel.connect()
+            )
+            await playback_instance.join(user_voice_channel)
 
+        playback_instance = self._playback_instances[ctx.guild.id]
 
+        await playback_instance.query_queue.put(query)
+
+        await ctx.respond("Added requested audio to queue")
 
 
     @slash_command(description="Skip the current track | <amount>")
@@ -320,36 +345,55 @@ class Audio(Cog):
         ctx: ApplicationContext,
         amount: Option(int, description="Number of tracks to skip") = 1
     ) -> None:
-        pass
+        if ctx.guild_id not in self._playback_instances:
+            await ctx.respond("Nothing is playing")
+            return
+
+        skipped_tracks = self._playback_instances[ctx.guild_id].skip(amount)
+
+        await ctx.respond(f"Skipped {skipped_tracks} track{"s" if skipped_tracks != 1 else ""}")
 
     @slash_command(description="Stop playing and clear queue")
     async def stop(
         self,
         ctx: ApplicationContext
     ) -> None:
-        pass
+        if ctx.guild_id not in self._playback_instances:
+            return
+
+        self._playback_instances[ctx.guild_id].stop()
+        del self._playback_instances[ctx.guild_id]
 
     @slash_command(description="Pause the music")
     async def pause(
         self,
         ctx: ApplicationContext
     ) -> None:
-        pass
+        if ctx.guild_id not in self._playback_instances:
+            return
+
+        self._playback_instances[ctx.guild_id].pause()
 
     @slash_command(description="Resume the music")
     async def resume(
         self,
         ctx: ApplicationContext
     ) -> None:
-        pass
+        if ctx.guild_id not in self._playback_instances:
+            return
+
+        self._playback_instances[ctx.guild_id].resume()
 
     @slash_command(description="Show the current music queue")
     async def queue(
         self,
         ctx: ApplicationContext
     ) -> None:
-        guild_id = ctx.guild.id
-        ctx.respond(self._audio_instances[guild_id].queue)
+        if ctx.guild_id not in self._playback_instances:
+            await ctx.respond("The queue is currently empty")
+            return
+
+        await ctx.respond(self._playback_instances[ctx.guild_id].audio_queue)
 
     @slash_command(description="Clear the music queue")
     async def clear(
@@ -368,5 +412,5 @@ class Audio(Cog):
 
 
 def setup(bot: Bot):
-    bot.add_cog(Audio(bot, AUDIO_CACHE_DIR, GREETING_AUDIO_PATH))
+    bot.add_cog(Audio(bot))
 

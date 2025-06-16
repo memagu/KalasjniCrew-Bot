@@ -4,12 +4,14 @@ from pathlib import Path
 import discord
 from dotenv import load_dotenv
 
-COG_DIRECTORY = Path("./cogs")
+COG_DIRECTORY = Path("./src/cogs")
 
 
 def load_cogs(bot: discord.Bot) -> None:
+    print("coggin'")
     for filename in COG_DIRECTORY.rglob("*.py"):
-        extension_path: str = filename.with_suffix("").as_posix().replace("/", ".")
+        print(filename)
+        extension_path: str = filename.with_suffix("").as_posix().replace("/", ".").removeprefix("src.")  # Ugly
         bot.load_extension(extension_path)
 
 
