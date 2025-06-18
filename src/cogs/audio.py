@@ -278,8 +278,8 @@ class PlaybackInstance:
 
     def _start_query_worker(self) -> None:
         self._stop_query_worker.clear()
-        self._query_worker = Thread(target=self._process_queries, daemon=True)
-        self._query_worker.start()
+        self._query_worker_td = Thread(target=self._process_queries, daemon=True)
+        self._query_worker_td.start()
 
     async def _terminate_query_worker(self) -> None:
         await asyncio.to_thread(self._query_worker_td.join)
