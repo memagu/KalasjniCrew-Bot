@@ -1,19 +1,31 @@
-from datetime import datetime
+import logging
 
-from discord import Bot, Cog
+from discord import ApplicationContext, Bot, Cog
 
 class Logging(Cog):
     def __init__(self, bot: Bot):
         self.bot = bot
 
+        logging.basicConfig(
+            format="%(asctime)s - %(levelname)s - %(message)s",
+            level=logging.INFO
+        )
+
     @Cog.listener()
     async def on_ready(self) -> None:
         await self.bot.sync_commands()
-        print(f"Logged on as {self.bot.user}", flush=True)
+        logging.info(f"Logged on as {self.bot.user}")
 
     @Cog.listener()
-    async def on_application_command_error(self, ctx, error) -> None:
-        print(f"[{datetime.now()}] [ERROR] {error}", flush=True)
+    async def on_application_command(self, ctx: ApplicationContext) -> None:
+        user = f"{ctx.author} (ID: {ctx.author.id})"
+        command = f"/{ctx.command.qualified_name}"
+        guild = f"{ctx.guild.name} (ID: {ctx.guild.id})" if ctx.guild else "DM"
+        logging.info(f"{user} used {command} in {guild}")
+
+    @Cog.listener()
+    async def on_application_command_error(self, _, error) -> None:
+        logging.error(error)
 
 
 def setup(bot: Bot) -> None:
