@@ -19,7 +19,7 @@ class Logging(Cog):
     @Cog.listener()
     async def on_application_command(self, ctx: ApplicationContext) -> None:
         user = f"{ctx.author} (ID: {ctx.author.id})"
-        command = f"/{ctx.command.name}"
+        command = f"/{ctx.command.qualified_name}"
         guild = f"{ctx.guild.name} (ID: {ctx.guild.id})" if ctx.guild else "DM"
         logging.info(f"{user} used {command} in {guild}")
 

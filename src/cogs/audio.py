@@ -1,12 +1,13 @@
 import asyncio
 from collections import deque
 import logging
+from operator import itemgetter
 import os
 from pathlib import Path
-from queue import Queue
+from queue import Empty, Queue
 import random
 import re
-from threading import Thread
+from threading import Thread, Event
 from typing import Callable, Generator, Iterable
 
 from discord import ApplicationContext, Bot, Cog, FFmpegPCMAudio, Option, VoiceClient, slash_command
@@ -90,7 +91,8 @@ class Youtube:
         "retries": 10,
         "fragment_retries": 10,
         "file_access_retries": 3,
-        "outtmpl": "%(title)s [%(id)s].%(ext)s"
+        "outtmpl": "%(title)s [%(id)s].%(ext)s",
+        "no_progress": True
     }
 
     @classmethod
@@ -106,6 +108,7 @@ class Youtube:
     def download(cls, video_ids: Iterable[str], download_dir: Path) -> None:
         with YoutubeDL(cls.DOWNLOAD_OPTIONS | {"paths": {"home": str(download_dir)}}) as ydl:
             urls = [f"https://www.youtube.com/watch?v={video_id}" for video_id in video_ids]
+            logging.info(f"Downlading {urls} to {download_dir}.")
             ydl.download(urls)
 
 
@@ -208,11 +211,7 @@ class AudioFetcher:
 
     @staticmethod
     def get_files_and_titles(query: str) -> Generator[tuple[Path, str], None, None]:
-        try:
-            video_ids = AudioFetcher._search(query)
-        except Exception as e:
-            logging.warning(f"Search failed for {query}: {e}")
-            return
+        video_ids = AudioFetcher._search(query)
         
         for video_id in video_ids:
             file_pattern = fr"*{video_id}*"
@@ -235,52 +234,83 @@ class PlaybackInstance:
     GREETING_AUDIO_PATH = Path("./assets/audio/obi_wan_hello_there.mp3")
 
     def __init__(self, voice_client: VoiceClient, on_finished: Callable[[], None] | None = None):
-        self.voice_client = voice_client
-        self.on_finished = on_finished
-        self.audio_queue: deque[tuple[Path, str]] = deque()
-        self.query_queue: Queue[str | None] = Queue()
+        self._voice_client = voice_client
+        self._on_finished = on_finished
+        self._audio_queue: deque[tuple[Path, str]] = deque()
+        self._query_queue: Queue[str] = Queue()
+        self._stop_query_worker = Event()
 
         try:
             self._loop = asyncio.get_running_loop()
         except RuntimeError:
             raise RuntimeError("Expected an active event loop, but none is running.")
 
-        self._query_worker_td = Thread(target=self._process_queries, daemon=True)
-        self._query_worker_td.start()
+        self._query_worker_td: Thread
+        self._start_query_worker()
 
-    def _process_queries(self) -> None:
-        while True:
-            query = self.query_queue.get()
-            if query is None:
-                return
+    async def _enqueue_audio(self, file_path: Path, title: str) -> None:
+        logging.debug(f"Queueing {title}")
+        self._audio_queue.append((file_path, title))
 
-            for file_path, title in AudioFetcher.get_files_and_titles(query):
-                asyncio.run_coroutine_threadsafe(
-                    self._enqueue_audio(file_path, title),
-                    self._loop
-                )
+        if not self._voice_client.is_playing():
+            await self.play()
+
+    def _process_queries(self, query_queue_poll_timeout_seconds: float = 0.5) -> None:
+        while not self._stop_query_worker.is_set():
+            try:
+                query = self._query_queue.get(timeout=query_queue_poll_timeout_seconds)
+            except Empty:
+                continue
+
+            # Kinda broken check for some reason. Spotify problems :(
+            try:
+                for file_path, title in AudioFetcher.get_files_and_titles(query):
+                    asyncio.run_coroutine_threadsafe(
+                        self._enqueue_audio(file_path, title),
+                        self._loop
+                    )
+            except Exception:
+                if not self._voice_client.is_playing() and not self._audio_queue:
+                    asyncio.run_coroutine_threadsafe(
+                        self.stop(),
+                        self._loop
+                    )
+
+    def _start_query_worker(self) -> None:
+        self._stop_query_worker.clear()
+        self._query_worker = Thread(target=self._process_queries, daemon=True)
+        self._query_worker.start()
+
+    async def _terminate_query_worker(self) -> None:
+        await asyncio.to_thread(self._query_worker_td.join)
+        self._stop_query_worker.set()
+
+
+    async def _restart_query_worker(self) -> None:
+        await self._terminate_query_worker()
+        self._start_query_worker()
 
     @property
     def currently_playing(self) -> tuple[Path, str] | None:
-        return self.audio_queue[0] if self.audio_queue else None
+        return self._audio_queue[0] if self._audio_queue else None
 
     @property
     def coming_up(self) -> list[tuple[Path, str]]:
-        return list(self.audio_queue)[1:]
+        return list(self._audio_queue)[1:]
 
-    def _enqueue(self, query: str | None) ->  None:
-        self.query_queue.put(query)
+    def greet(self) -> None:
+        self._voice_client.play(FFmpegPCMAudio(str(self.GREETING_AUDIO_PATH)))
 
     def enqueue(self, query: str) ->  None:
-        self._enqueue(query)
+        self._query_queue.put(query)
 
     async def play(self) -> None:
-        if not self.audio_queue:
+        if not self._audio_queue:
             await self.stop()
             return
 
-        audio_file, _ = self.audio_queue[0]
-        self.voice_client.play(
+        audio_file, _ = self._audio_queue[0]
+        self._voice_client.play(
             FFmpegPCMAudio(str(audio_file)),
             after=lambda e: asyncio.run_coroutine_threadsafe(
                 self._play_next(),
@@ -289,60 +319,47 @@ class PlaybackInstance:
         )
 
     async def _play_next(self):
-        self.audio_queue.popleft()
+        self._audio_queue.popleft()
         await self.play()
-
-    async def _enqueue_audio(self, file_path: Path, title: str) -> None:
-        logging.debug(f"Queueing {title}")
-        self.audio_queue.append((file_path, title))
-
-        if not self.voice_client.is_playing():
-            await self.play()
-
-    def greet(self) -> None:
-        self.voice_client.play(FFmpegPCMAudio(str(self.GREETING_AUDIO_PATH)))
 
     async def join_channel(
         self,
         channel: VocalGuildChannel
     ) -> None:
-        await self.voice_client.move_to(channel)
+        await self._voice_client.move_to(channel)
         self.greet()
 
     def pause(self) -> None:
-        self.voice_client.pause()
+        self._voice_client.pause()
 
     def resume(self) -> None:
-        self.voice_client.resume()
+        self._voice_client.resume()
 
     def skip(self, amount: int) -> int:
-        amount = min(max(0, amount), len(self.audio_queue))
+        amount = min(max(0, amount), len(self._audio_queue))
         for _ in range(amount):
-            self.audio_queue.popleft()
+            self._audio_queue.popleft()
         
-        self.voice_client.stop()
+        self._voice_client.stop()
         return amount
 
+    def _clear_query_queue(self) -> None:
+        while not self._query_queue.empty():
+            self._query_queue.get()
+
     async def clear(self) -> None:
-        self.audio_queue.clear()
-
-        self.query_queue.empty()
-        self._enqueue(None)
-        await asyncio.to_thread(self._query_worker_td.join)
-
+        self._audio_queue.clear()
+        self._clear_query_queue()
+        await self._restart_query_worker()
 
     async def stop(self) -> None:
-        self.audio_queue.clear()
+        await self._terminate_query_worker()
 
-        self.query_queue.empty()
-        self._enqueue(None)
-        await asyncio.to_thread(self._query_worker_td.join)
-
-        self.voice_client.stop()
-        await self.voice_client.disconnect()
+        self._voice_client.stop()
+        await self._voice_client.disconnect()
         
-        if self.on_finished is not None:
-            self.on_finished()
+        if self._on_finished is not None:
+            self._on_finished()
 
     # Datarace can occur here
     def shuffle(self) -> None:
@@ -355,9 +372,18 @@ class PlaybackInstance:
 
         random.shuffle(upcoming)
 
-        self.audio_queue.clear()
-        self.audio_queue.append(current)
-        self.audio_queue.extend(upcoming)
+        self._audio_queue.clear()
+        self._audio_queue.append(current)
+        self._audio_queue.extend(upcoming)
+
+    def pop(self, index: int) -> str:
+        if not 1 <= index < len(self._audio_queue):
+            raise IndexError(f"Index {index} is invalid for audio queue of size {len(self._audio_queue)}.")
+
+        removed_title = self._audio_queue[index][1]
+        del self._audio_queue[index]
+
+        return removed_title
 
 
 class Audio(Cog):
@@ -369,15 +395,15 @@ class Audio(Cog):
         if guild_id in self._playback_instances:
             del self._playback_instances[guild_id]
 
-    @slash_command(description="Play audio | <track name or URL>")
+    @slash_command(description="Play audio.")
     async def play(
         self,
         ctx: ApplicationContext,
-        query: Option(str, description="Audio name or URL")
+        query: Option(str, description="Audio name or URL.")
     ) -> None:
         user_voice_state = ctx.author.voice
         if user_voice_state is None:
-            await ctx.respond("You must be in a voice channel")
+            await ctx.respond("You must be in a voice channel.")
             return
 
         if ctx.guild_id not in self._playback_instances:
@@ -392,91 +418,116 @@ class Audio(Cog):
 
         playback_instance = self._playback_instances[ctx.guild_id]
 
+        await ctx.respond(f"Incremetally queueing audio for query: {query} ...")
         playback_instance.enqueue(query)
 
-        await ctx.respond("Added requested audio to queue")
 
-
-    @slash_command(description="Skip the current track | <amount>")
+    @slash_command(description="Skip the current track.")
     async def skip(
         self,
         ctx: ApplicationContext,
-        amount: Option(int, description="Number of tracks to skip") = 1
+        amount: Option(int, description="Number of tracks to skip.") = 1
     ) -> None:
         if ctx.guild_id not in self._playback_instances:
-            await ctx.respond("Nothing is playing")
+            await ctx.respond("Nothing is playing.")
             return
 
         skipped_tracks = self._playback_instances[ctx.guild_id].skip(amount)
 
-        await ctx.respond(f"Skipped {skipped_tracks} track{"s" if skipped_tracks != 1 else ""}")
+        await ctx.respond(f"Skipped {skipped_tracks} track{"s" if skipped_tracks != 1 else ""}.")
 
-    @slash_command(description="Stop playing and clear queue")
+    @slash_command(description="Stop playback and leave voice channel.")
     async def stop(
         self,
         ctx: ApplicationContext
     ) -> None:
-        if ctx.guild_id not in self._playback_instances:
+        playback_instance = self._playback_instances.get(ctx.guild_id)
+        if playback_instance is None:
+            await ctx.respond("There is nothing to stop.")
             return
 
-        await self._playback_instances[ctx.guild_id].stop()
+        await ctx.respond(f"Stopping playback and leaving...")
+        await ctx.defer()
+        await playback_instance.stop()
 
-    @slash_command(description="Pause the music")
+    @slash_command(description="Pause the music.")
     async def pause(
         self,
         ctx: ApplicationContext
     ) -> None:
-        if ctx.guild_id not in self._playback_instances:
+        playback_instance = self._playback_instances.get(ctx.guild_id)
+        if playback_instance is None:
+            await ctx.respond("There is nothing to pause.")
             return
 
-        self._playback_instances[ctx.guild_id].pause()
+        playback_instance.pause()
+        await ctx.respond(f"Paused playback of {playback_instance.currently_playing}.")
 
-    @slash_command(description="Resume the music")
+    @slash_command(description="Resume the music.")
     async def resume(
         self,
         ctx: ApplicationContext
     ) -> None:
-        if ctx.guild_id not in self._playback_instances:
+        playback_instance = self._playback_instances.get(ctx.guild_id)
+        if playback_instance is None:
+            await ctx.respond("There is nothing to resume.")
             return
 
-        self._playback_instances[ctx.guild_id].resume()
+        playback_instance.resume()
+        await ctx.respond(f"Resuming playback of {playback_instance.currently_playing}.")
 
-    @slash_command(description="Show the current music queue")
+
+    @slash_command(description="Show the current music queue.")
     async def queue(
         self,
         ctx: ApplicationContext
     ) -> None:
         playback_instance = self._playback_instances.get(ctx.guild_id)
         if playback_instance is None:
-            await ctx.respond("The queue is currently empty")
+            await ctx.respond("The queue is currently empty.")
             return
 
-        currently_playing = playback_instance.currently_playing[1]
-        coming_up = playback_instance.coming_up
+        currently_playing_title = playback_instance.currently_playing[1] if playback_instance.currently_playing is not None else None
+        coming_up_titles = map(itemgetter(1), playback_instance.coming_up)
         
-        output = [f"Now Playing: {currently_playing}"]
-        output.extend(f"{i}. {title}" for i, (_, title) in enumerate(coming_up, 1))
+        output = [f"Now Playing: {currently_playing_title}."]
+        output.extend(f"{i}. {title}." for i, title in enumerate(coming_up_titles, 1))
 
         output_str = "\n".join(output)
         for i in range(0, len(output_str), 2000):
             await ctx.respond(output_str[i:i + 2000])
 
-    @slash_command(description="Clear the audio queue")
+    @slash_command(description="Clear the audio queue.")
     async def clear(
         self,
         ctx: ApplicationContext
     ) -> None:
-        ctx.respond("This functionality is not yet implemented, use /stop + /play instead")
+        playback_instance = self._playback_instances.get(ctx.guild_id)
+        if playback_instance is None:
+            await ctx.respond("There is no active queue to clear.")
+            return
 
-    @slash_command(description="Remove a track from the queue | <queue position>")
+        await playback_instance.clear()
+        await ctx.respond("Cleared the audio queue.")
+
+    @slash_command(description="Remove a track from the queue.")
     async def remove(
         self,
         ctx: ApplicationContext,
         queue_position: int
     ) -> None:
-        pass
+        playback_instance = self._playback_instances.get(ctx.guild_id)
+        if playback_instance is None:
+            await ctx.respond("There is no active queue to modify.")
+            return
 
-    @slash_command(description="Shuffle the audio queue")
+        try:
+            removed_title = playback_instance.pop(queue_position) 
+            await ctx.respond(f"Removed {removed_title} from the queue.")
+        except IndexError as e:
+            await ctx.respond(e)
+
+    @slash_command(description="Shuffle the audio queue.")
     async def shuffle(
         self,
         ctx: ApplicationContext
@@ -485,7 +536,7 @@ class Audio(Cog):
         if playback_instance is not None:
             playback_instance.shuffle()
 
-        ctx.respond("Shuffling queue")
+        await ctx.respond("Shuffling queue.")
 
 def setup(bot: Bot):
     bot.add_cog(Audio(bot))
