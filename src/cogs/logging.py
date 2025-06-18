@@ -21,7 +21,9 @@ class Logging(Cog):
         user = f"{ctx.author} (ID: {ctx.author.id})"
         command = f"/{ctx.command.qualified_name}"
         guild = f"{ctx.guild.name} (ID: {ctx.guild.id})" if ctx.guild else "DM"
-        logging.info(f"{user} used {command} in {guild}")
+        options = ", ".join(option["value"] for option in ctx.selected_options or [])
+
+        logging.info(f"{user}@{guild}: {command} {options}")
 
     @Cog.listener()
     async def on_application_command_error(self, _, error) -> None:
