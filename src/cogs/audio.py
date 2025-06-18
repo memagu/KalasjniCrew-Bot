@@ -282,9 +282,8 @@ class PlaybackInstance:
         self._query_worker_td.start()
 
     async def _terminate_query_worker(self) -> None:
-        await asyncio.to_thread(self._query_worker_td.join)
         self._stop_query_worker.set()
-
+        await asyncio.to_thread(self._query_worker_td.join)
 
     async def _restart_query_worker(self) -> None:
         await self._terminate_query_worker()
@@ -319,7 +318,9 @@ class PlaybackInstance:
         )
 
     async def _play_next(self):
-        self._audio_queue.popleft()
+        if self._audio_queue:
+            self._audio_queue.popleft()
+
         await self.play()
 
     async def join_channel(
@@ -337,7 +338,7 @@ class PlaybackInstance:
 
     def skip(self, amount: int) -> int:
         amount = min(max(0, amount), len(self._audio_queue))
-        for _ in range(amount):
+        for _ in range(amount - 1):  # -1 for working with play_next which skips one
             self._audio_queue.popleft()
         
         self._voice_client.stop()
@@ -441,13 +442,13 @@ class Audio(Cog):
         self,
         ctx: ApplicationContext
     ) -> None:
+        print("OI")
         playback_instance = self._playback_instances.get(ctx.guild_id)
         if playback_instance is None:
             await ctx.respond("There is nothing to stop.")
             return
 
         await ctx.respond(f"Stopping playback and leaving...")
-        await ctx.defer()
         await playback_instance.stop()
 
     @slash_command(description="Pause the music.")
