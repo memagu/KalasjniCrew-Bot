@@ -92,7 +92,7 @@ class Youtube:
         "fragment_retries": 10,
         "file_access_retries": 3,
         "outtmpl": "%(title)s [%(id)s].%(ext)s",
-        "no_progress": True
+        "noprogress": True
     }
 
     @classmethod
